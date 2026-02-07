@@ -1,0 +1,4 @@
+window.APP_CONFIG = {
+  SUPABASE_URL: "https://YOUR_PROJECT.supabase.co",
+  SUPABASE_SERVICE_KEY: "YOUR_SERVICE_ROLE_KEY",
+};
