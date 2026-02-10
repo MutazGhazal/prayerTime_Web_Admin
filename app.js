@@ -27,6 +27,7 @@ const emptyItem = () => ({
 
 function App() {
   const [session, setSession] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [clients, setClients] = useState([]);
@@ -265,76 +266,71 @@ function App() {
   }
 
   async function saveClientMeta() {
-    const payload = {
-      name: clientMeta.name,
-      slug: clientMeta.slug,
-      logo_url: clientMeta.logo_url,
-      referral_code: clientMeta.referral_code,
-      commission_rate: Number(clientMeta.commission_rate || 10),
-    };
-    const { error } = await supabase
-      .from("clients")
-      .update(payload)
-      .eq("slug", selectedSlug);
-    if (error) {
-      alert(error.message);
-      return;
-    }
-    alert("تم حفظ بيانات العميل");
-    loadClients();
-  }
-
-  async function saveSection1() {
-    await saveListSection(selectedSlug, 1, [section1]);
-    alert("تم حفظ قسم الشركة");
-  }
-
-  async function saveLinks() {
-    await saveListSection(selectedSlug, 2, links);
-    alert("تم حفظ روابط الشركة");
-  }
-
-  async function saveOffers() {
-    await saveListSection(selectedSlug, 3, offers);
-    alert("تم حفظ عروض الشركة");
-  }
-
-  async function saveAdminAds() {
-    await saveAdminList(4, adminAds);
-    alert("تم حفظ الإعلانات");
-  }
-
-  async function saveMarketingLinks() {
-    await saveAdminList(5, marketingLinks);
-    alert("تم حفظ روابط التسويق");
-  }
-
-  async function saveUserItems() {
-    if (!selectedUserId) return;
-    const { error: delError } = await supabase.from("app_user_sections").delete().eq("user_id", selectedUserId);
-    if (delError) {
-      alert("خطأ بالحذف: " + delError.message);
-      return;
-    }
-    const payload = userItems
-      .filter((item) => item.title || item.body || item.image_url || item.link_url)
-      .map((item, index) => ({
-        user_id: selectedUserId,
-        section: 1,
-        title: item.title,
-        body: item.body,
-        image_url: item.image_url,
-        link_url: item.link_url,
-        sort_order: index,
-      }));
-    if (payload.length) {
-      const { error } = await supabase.from("app_user_sections").insert(payload);
+    setSaving(true);
+    try {
+      const payload = {
+        name: clientMeta.name,
+        slug: clientMeta.slug,
+        logo_url: clientMeta.logo_url,
+        referral_code: clientMeta.referral_code,
+        commission_rate: Number(clientMeta.commission_rate || 10),
+      };
+      const { error } = await supabase
+        .from("clients")
+        .update(payload)
+        .eq("slug", selectedSlug);
       if (error) {
         alert(error.message);
         return;
       }
-    }
-    alert("تم حفظ محتوى المستخدم");
+      alert("تم حفظ بيانات العميل");
+      loadClients();
+    } finally { setSaving(false); }
+  }
+
+  async function saveSection1() {
+    setSaving(true);
+    try { await saveListSection(selectedSlug, 1, [section1]); alert("تم حفظ قسم الشركة"); } finally { setSaving(false); }
+  }
+
+  async function saveLinks() {
+    setSaving(true);
+    try { await saveListSection(selectedSlug, 2, links); alert("تم حفظ روابط الشركة"); } finally { setSaving(false); }
+  }
+
+  async function saveOffers() {
+    setSaving(true);
+    try { await saveListSection(selectedSlug, 3, offers); alert("تم حفظ عروض الشركة"); } finally { setSaving(false); }
+  }
+
+  async function saveAdminAds() {
+    setSaving(true);
+    try { await saveAdminList(4, adminAds); alert("تم حفظ الإعلانات"); } finally { setSaving(false); }
+  }
+
+  async function saveMarketingLinks() {
+    setSaving(true);
+    try { await saveAdminList(5, marketingLinks); alert("تم حفظ روابط التسويق"); } finally { setSaving(false); }
+  }
+
+  async function saveUserItems() {
+    if (!selectedUserId) return;
+    setSaving(true);
+    try {
+      const { error: delError } = await supabase.from("app_user_sections").delete().eq("user_id", selectedUserId);
+      if (delError) { alert("خطأ بالحذف: " + delError.message); return; }
+      const payload = userItems
+        .filter((item) => item.title || item.body || item.image_url || item.link_url)
+        .map((item, index) => ({
+          user_id: selectedUserId, section: 1, title: item.title, body: item.body,
+          image_url: item.image_url, link_url: item.link_url, sort_order: index,
+        }));
+      if (payload.length) {
+        const { error } = await supabase.from("app_user_sections").insert(payload);
+        if (error) { alert(error.message); return; }
+      }
+      alert("تم حفظ محتوى المستخدم");
+    } finally { setSaving(false); }
   }
 
   async function saveListSection(slug, section, items) {
@@ -495,7 +491,7 @@ function App() {
           </div>
         </div>
         <div style={{ marginTop: 12 }}>
-          <button onClick={saveClientMeta}>حفظ بيانات العميل</button>
+          <button onClick={saveClientMeta} disabled={saving}>{saving ? "جاري الحفظ..." : "حفظ بيانات العميل"}</button>
           <button className="secondary" onClick={signOut} style={{ marginRight: 8 }}>
             تسجيل الخروج
           </button>
@@ -505,7 +501,7 @@ function App() {
       <div className="card">
         <div className="section-title">1) بيانات الشركة</div>
         <TextBlock item={section1} onChange={setSection1} />
-        <button onClick={saveSection1}>حفظ القسم</button>
+        <button onClick={saveSection1} disabled={saving}>{saving ? "جاري الحفظ..." : "حفظ القسم"}</button>
       </div>
 
       <div className="card">
@@ -518,7 +514,7 @@ function App() {
         />
         <div className="row">
           <button onClick={() => addItem(setLinks, links)}>إضافة رابط</button>
-          <button className="secondary" onClick={saveLinks}>
+          <button className="secondary" onClick={saveLinks} disabled={saving}>
             حفظ الروابط
           </button>
         </div>
@@ -529,7 +525,7 @@ function App() {
         <ListEditor items={offers} onChange={setOffers} showImage />
         <div className="row">
           <button onClick={() => addItem(setOffers, offers)}>إضافة عرض</button>
-          <button className="secondary" onClick={saveOffers}>
+          <button className="secondary" onClick={saveOffers} disabled={saving}>
             حفظ العروض
           </button>
         </div>
@@ -540,7 +536,7 @@ function App() {
         <ListEditor items={adminAds} onChange={setAdminAds} showImage />
         <div className="row">
           <button onClick={() => addItem(setAdminAds, adminAds)}>إضافة إعلان</button>
-          <button className="secondary" onClick={saveAdminAds}>
+          <button className="secondary" onClick={saveAdminAds} disabled={saving}>
             حفظ الإعلانات
           </button>
         </div>
@@ -558,7 +554,7 @@ function App() {
           <button onClick={() => addItem(setMarketingLinks, marketingLinks)}>
             إضافة رابط
           </button>
-          <button className="secondary" onClick={saveMarketingLinks}>
+          <button className="secondary" onClick={saveMarketingLinks} disabled={saving}>
             حفظ روابط التسويق
           </button>
         </div>
@@ -690,7 +686,7 @@ function App() {
           </div>
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <button className="secondary" onClick={addPurchase}>تسجيل الشراء</button>
+          <button className="secondary" onClick={addPurchase} disabled={saving}>{saving ? "جاري الحفظ..." : "تسجيل الشراء"}</button>
         </div>
       </div>
 
@@ -767,7 +763,7 @@ function App() {
               <button onClick={() => addItem(setUserItems, userItems)}>
                 إضافة عنصر
               </button>
-              <button className="secondary" onClick={saveUserItems}>
+              <button className="secondary" onClick={saveUserItems} disabled={saving}>
                 حفظ محتوى المستخدم
               </button>
             </div>
@@ -871,4 +867,31 @@ function ListEditor({ items, onChange, showBody = true, showImage = true }) {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(
+  React.createElement(ErrorBoundary, null, React.createElement(App))
+);
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return React.createElement("div", { className: "container" },
+        React.createElement("div", { className: "card" },
+          React.createElement("div", { className: "section-title" }, "⚠️ حدث خطأ غير متوقع"),
+          React.createElement("div", { className: "muted" }, this.state.error?.message || ""),
+          React.createElement("button", {
+            style: { marginTop: 12 },
+            onClick: () => { this.setState({ hasError: false, error: null }); }
+          }, "إعادة المحاولة")
+        )
+      );
+    }
+    return this.props.children;
+  }
+}
