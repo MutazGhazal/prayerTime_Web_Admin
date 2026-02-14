@@ -14,6 +14,9 @@ const supabase = window.supabase
   ? window.supabase.createClient(config?.SUPABASE_URL, config?.SUPABASE_ANON_KEY)
   : null;
 
+/* المقاس المطلوب للصور في البطاقات (يظهر في التطبيق بارتفاع 140) */
+const AD_IMAGE_DIMENSIONS = "360×140 بكسل (أو 720×280 للوضوح)";
+
 /* ========== Helpers ========== */
 let _itemId = 0;
 const emptyItem = () => ({ _key: ++_itemId, title: "", body: "", image_url: "", link_url: "" });
@@ -178,6 +181,21 @@ function App() {
     if (res.error) { setAuthMsg({ type: "error", text: res.error.message }); return; }
     showToast("تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك ✓");
     setShowForgotPw(false);
+  }
+
+  async function uploadImage(file) {
+    var bucket = (config && config.BUCKET) ? config.BUCKET : "uploads";
+    if (!file) return "";
+    setUploading(true);
+    try {
+      var ext = (file.name && file.name.split(".").pop()) || "jpg";
+      var path = "admin/" + Date.now() + "." + ext;
+      var res = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+      if (res.error) { showToast("خطأ رفع: " + res.error.message, "error"); return ""; }
+      var urlRes = supabase.storage.from(bucket).getPublicUrl(path);
+      showToast("تم رفع الصورة ✓");
+      return urlRes.data.publicUrl;
+    } finally { setUploading(false); }
   }
 
   async function loadClients() {
@@ -380,7 +398,8 @@ function App() {
         {isAdmin && (
         <div className="card">
           <div className="card-title"><span className="icon">📢</span> إعلانات الأدمن <span className="badge badge-green">(للدمن فقط — حتى 5)</span></div>
-          <ListEditor items={adminAds} setter={setAdminAds} showBody={true} showImage={true} maxItems={5} />
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب لصورة كل إعلان: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
+          <ListEditor items={adminAds} setter={setAdminAds} showBody={true} showImage={true} maxItems={5} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
           <div className="actions">
             <button className="btn-add" onClick={function(){if(adminAds.length<5)setAdminAds(adminAds.concat([emptyItem()]));}} disabled={adminAds.length>=5}>+ إضافة إعلان</button>
             <button className="btn-save" onClick={saveAdminAds} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ الإعلانات"}</button>
@@ -397,7 +416,8 @@ function App() {
                 {appUsers.map(function(u){return <option key={u.user_id} value={u.user_id}>{u.email||u.full_name||u.user_id}</option>;})}
               </select>
               {currentUser && <div style={{display:"flex",gap:12,marginTop:8}}><span className="badge badge-blue">{currentUser.provider||"email"}</span><span className="muted">آخر دخول: {currentUser.last_login?new Date(currentUser.last_login).toLocaleString():"-"}</span></div>}
-              <ListEditor items={userItems} setter={setUserItems} showBody={true} showImage={true} maxItems={3} />
+              <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب للصورة: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
+              <ListEditor items={userItems} setter={setUserItems} showBody={true} showImage={true} maxItems={3} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
               <div className="actions">
                 <button className="btn-add" onClick={function(){if(userItems.length<3)setUserItems(userItems.concat([emptyItem()]));}} disabled={userItems.length>=3}>+ إضافة عنصر</button>
                 <button className="btn-save" onClick={saveUserItems} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ محتوى المستخدم"}</button>
@@ -446,7 +466,8 @@ function App() {
 
         <div className="card">
           <div className="card-title"><span className="icon">🎁</span> عروض الشركة</div>
-          <ListEditor items={offers} setter={setOffers} showBody={true} showImage={true} />
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب لصورة كل عرض: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
+          <ListEditor items={offers} setter={setOffers} showBody={true} showImage={true} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
           <div className="actions">
             <button className="btn-add" onClick={function(){setOffers(offers.concat([emptyItem()]));}}>+ إضافة عرض</button>
             <button className="btn-save" onClick={saveOffers} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ العروض"}</button>
@@ -526,6 +547,9 @@ function ListEditor(props) {
   var showBody = props.showBody !== false;
   var showImage = props.showImage !== false;
   var maxItems = props.maxItems;
+  var onUpload = props.onUpload;
+  var uploading = props.uploading;
+  var dimensionsHint = props.dimensionsHint || AD_IMAGE_DIMENSIONS;
   function handleUpdate(index, field, value) {
     var updated = items.slice();
     updated[index] = Object.assign({}, updated[index]);
@@ -551,8 +575,26 @@ function ListEditor(props) {
             </div>
             {showImage && (
               <div style={{marginTop:8}}>
-                <label>صورة (رابط)</label>
-                <input value={item.image_url||""} onChange={function(e){handleUpdate(index,"image_url",e.target.value);}} placeholder="https://..." />
+                <label>صورة</label>
+                <div className="row" style={{alignItems:"flex-end"}}>
+                  <div style={{flex:1}}>
+                    <input value={item.image_url||""} onChange={function(e){handleUpdate(index,"image_url",e.target.value);}} placeholder="رابط الصورة أو ارفع ملف..." />
+                  </div>
+                  {onUpload && (
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      <label className="btn-secondary" style={{display:"inline-block",padding:"10px 16px",borderRadius:8,cursor:"pointer",whiteSpace:"nowrap",fontSize:13}}>
+                        {uploading ? "جاري الرفع..." : "📷 رفع صورة"}
+                        <input type="file" accept="image/*" style={{display:"none"}} disabled={uploading} onChange={async function(e) {
+                          var file = e.target.files && e.target.files[0]; if (!file) return;
+                          var url = await onUpload(file);
+                          if (url) handleUpdate(index, "image_url", url);
+                          e.target.value = "";
+                        }} />
+                      </label>
+                      <span className="muted" style={{fontSize:11,whiteSpace:"nowrap"}}>المقاس: {dimensionsHint}</span>
+                    </div>
+                  )}
+                </div>
                 {item.image_url && <div className="img-preview"><img src={item.image_url} alt="" onError={function(e){e.target.parentNode.style.display="none";}} /></div>}
               </div>
             )}
