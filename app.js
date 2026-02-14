@@ -14,8 +14,8 @@ const supabase = window.supabase
   ? window.supabase.createClient(config?.SUPABASE_URL, config?.SUPABASE_ANON_KEY)
   : null;
 
-/* المقاس المطلوب للإعلانات حسب التصميم 9:16 */
-const AD_IMAGE_DIMENSIONS = "360×200 بكسل";
+/* المقاس المطلوب للإعلانات حسب التصميم 9:16 (يظهر في التطبيق بارتفاع 140) */
+const AD_IMAGE_DIMENSIONS = "360×140 بكسل (أو 720×280 للوضوح)";
 
 /* ========== Helpers ========== */
 let _itemId = 0;
@@ -80,6 +80,12 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminAds, setAdminAds] = useState([emptyItem()]);
   const [marketing, setMarketing] = useState([emptyItem()]);
@@ -90,7 +96,10 @@ function App() {
 
   useEffect(function() {
     supabase.auth.getSession().then(function(res) { setSession(res.data.session); });
-    var sub = supabase.auth.onAuthStateChange(function(_e, s) { setSession(s); });
+    var sub = supabase.auth.onAuthStateChange(function(e, s) {
+      setSession(s);
+      if (e === "PASSWORD_RECOVERY" && s) setRecoveryMode(true);
+    });
     return function() { sub.data.subscription.unsubscribe(); };
   }, []);
 
@@ -102,7 +111,13 @@ function App() {
     var uid = session && session.user ? session.user.id : null;
     if (!uid) { setIsAdmin(false); return; }
     var res = await supabase.from("admin_users").select("id").eq("user_id", uid).maybeSingle();
-    if (res.error || !res.data) { setIsAdmin(false); return; }
+    if (res.error || !res.data) {
+      setIsAdmin(false);
+      setAuthMsg({ type: "error", text: "هذا الحساب غير مسجل كأدمن. فقط المسجلون كأدمن يمكنهم الدخول." });
+      await supabase.auth.signOut();
+      return;
+    }
+    setAuthMsg(null);
     setIsAdmin(true);
     loadAdminSections();
   }
@@ -122,6 +137,29 @@ function App() {
     if (res.error) setAuthMsg({ type: "error", text: res.error.message });
   }
 
+  var redirectUrl = (config.WEB_ADMIN_URL || (window.location.origin + window.location.pathname + window.location.search)).replace(/\/$/, "") + "/";
+  async function sendResetPassword() {
+    var em = (resetEmail || "").trim();
+    if (!em) { setAuthMsg({ type: "error", text: "أدخل البريد الإلكتروني" }); return; }
+    setAuthBusy(true); setAuthMsg(null);
+    var res = await supabase.auth.resetPasswordForEmail(em, { redirectTo: redirectUrl });
+    setAuthBusy(false);
+    if (res.error) setAuthMsg({ type: "error", text: res.error.message });
+    else { setResetSent(true); setAuthMsg({ type: "success", text: "تم إرسال رابط إعادة التعيين إلى بريدك. تحقق من صندوق الوارد (والسخام)." }); }
+  }
+
+  async function setNewPasswordSubmit() {
+    var p = (newPassword || "").trim();
+    var c = (confirmPassword || "").trim();
+    if (!p || p.length < 6) { setAuthMsg({ type: "error", text: "كلمة المرور الجديدة 6 أحرف على الأقل" }); return; }
+    if (p !== c) { setAuthMsg({ type: "error", text: "كلمتا المرور غير متطابقتين" }); return; }
+    setAuthBusy(true); setAuthMsg(null);
+    var res = await supabase.auth.updateUser({ password: p });
+    setAuthBusy(false);
+    if (res.error) setAuthMsg({ type: "error", text: res.error.message });
+    else { setRecoveryMode(false); setNewPassword(""); setConfirmPassword(""); setAuthMsg({ type: "success", text: "تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن." }); }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setIsAdmin(false);
@@ -130,14 +168,15 @@ function App() {
   }
 
   async function uploadImage(file) {
-    if (!config.BUCKET) { showToast("لم يُعيّن BUCKET في config.js", "error"); return ""; }
+    var bucket = config.BUCKET || "uploads";
+    if (!file) return "";
     setUploading(true);
     try {
       var ext = file.name.split(".").pop();
       var path = "admin/" + Date.now() + "." + ext;
-      var res = await supabase.storage.from(config.BUCKET).upload(path, file, { upsert: true });
+      var res = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
       if (res.error) { showToast("خطأ رفع: " + res.error.message, "error"); return ""; }
-      var urlRes = supabase.storage.from(config.BUCKET).getPublicUrl(path);
+      var urlRes = supabase.storage.from(bucket).getPublicUrl(path);
       showToast("تم رفع الصورة ✓");
       return urlRes.data.publicUrl;
     } finally { setUploading(false); }
@@ -172,32 +211,85 @@ function App() {
     return acc;
   }
 
+  /* ===== تعيين كلمة مرور جديدة (بعد النقر على رابط إعادة التعيين) ===== */
+  if (session && recoveryMode) {
+    return (
+      <div className="auth-page">
+        <ToastContainer />
+        <div className="auth-card">
+          <div className="auth-logo">🔐</div>
+          <div className="auth-title">تعيين كلمة مرور جديدة</div>
+          <div className="auth-subtitle">أدخل كلمة المرور الجديدة لحساب الأدمن</div>
+          {authMsg && <div className={"alert " + authMsg.type}>{authMsg.text}</div>}
+          <div className="auth-form">
+            <div className="field">
+              <label>كلمة المرور الجديدة</label>
+              <input type="password" placeholder="6 أحرف على الأقل" value={newPassword} onChange={function(e){setNewPassword(e.target.value);}} />
+            </div>
+            <div className="field">
+              <label>تأكيد كلمة المرور</label>
+              <input type="password" placeholder="أعد إدخال كلمة المرور" value={confirmPassword} onChange={function(e){setConfirmPassword(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")setNewPasswordSubmit();}} />
+            </div>
+          </div>
+          <div className="auth-actions">
+            <button className="btn-primary" onClick={setNewPasswordSubmit} disabled={authBusy}>{authBusy?"جاري الحفظ...":"حفظ كلمة المرور"}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ===== LOGIN PAGE ===== */
   if (!session) {
+    var isResetView = resetMode || resetSent;
     return (
       <div className="auth-page">
         <ToastContainer />
         <div className="auth-card">
           <div className="auth-logo">🕌</div>
           <div className="auth-title">لوحة تحكم الأدمن</div>
-          <div className="auth-subtitle">سجّل دخولك بحساب أدمن لإدارة الإعلانات</div>
+          <div className="auth-subtitle">
+            {isResetView ? (resetSent ? "تحقق من بريدك ثم عد لتسجيل الدخول" : "أدخل بريدك لإرسال رابط إعادة تعيين كلمة المرور") : "سجّل دخولك بحساب أدمن لإدارة الإعلانات"}
+          </div>
           {authMsg && <div className={"alert " + authMsg.type}>{authMsg.text}</div>}
-          <div className="auth-form">
-            <div className="field">
-              <label>البريد الإلكتروني</label>
-              <input type="email" placeholder="name@example.com" value={email} onChange={function(e){setEmail(e.target.value);}} />
-            </div>
-            <div className="field">
-              <label>كلمة المرور</label>
-              <div className="pass-wrap">
-                <input type={showPass?"text":"password"} value={password} onChange={function(e){setPassword(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")signIn();}} />
-                <button type="button" className="pass-toggle" onClick={function(){setShowPass(!showPass);}}>{showPass?"إخفاء":"عرض"}</button>
+          {!isResetView ? (
+            <>
+              <div className="auth-form">
+                <div className="field">
+                  <label>البريد الإلكتروني</label>
+                  <input type="email" placeholder="name@example.com" value={email} onChange={function(e){setEmail(e.target.value); setAuthMsg(null);}} />
+                </div>
+                <div className="field">
+                  <label>كلمة المرور</label>
+                  <div className="pass-wrap">
+                    <input type={showPass?"text":"password"} value={password} onChange={function(e){setPassword(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")signIn();}} />
+                    <button type="button" className="pass-toggle" onClick={function(){setShowPass(!showPass);}}>{showPass?"إخفاء":"عرض"}</button>
+                  </div>
+                </div>
               </div>
+              <div className="auth-actions">
+                <button className="btn-primary" onClick={signIn} disabled={authBusy}>{authBusy?"جاري الدخول...":"تسجيل الدخول"}</button>
+                <button type="button" className="btn-link" style={{marginTop:8}} onClick={function(){setResetMode(true); setAuthMsg(null);}}>نسيت كلمة المرور؟</button>
+              </div>
+            </>
+          ) : resetSent ? (
+            <div className="auth-actions">
+              <button type="button" className="btn-link" onClick={function(){setResetSent(false); setResetMode(false); setResetEmail(""); setAuthMsg(null);}}>← رجوع لتسجيل الدخول</button>
             </div>
-          </div>
-          <div className="auth-actions">
-            <button className="btn-primary" onClick={signIn} disabled={authBusy}>{authBusy?"جاري الدخول...":"تسجيل الدخول"}</button>
-          </div>
+          ) : (
+            <>
+              <div className="auth-form">
+                <div className="field">
+                  <label>البريد الإلكتروني</label>
+                  <input type="email" placeholder="name@example.com" value={resetEmail} onChange={function(e){setResetEmail(e.target.value); setAuthMsg(null);}} />
+                </div>
+              </div>
+              <div className="auth-actions">
+                <button className="btn-primary" onClick={sendResetPassword} disabled={authBusy}>{authBusy?"جاري الإرسال...":"إرسال رابط إعادة التعيين"}</button>
+                <button type="button" className="btn-link" style={{marginTop:8}} onClick={function(){setResetMode(false); setAuthMsg(null);}}>← رجوع لتسجيل الدخول</button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -230,6 +322,7 @@ function App() {
       <div className="container">
         <div className="card">
           <div className="card-title"><span className="icon">📢</span> إعلانات الأدمن (تظهر في التطبيق)</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب لصورة كل إعلان: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
           <ListEditorWithDimensions items={adminAds} setter={setAdminAds} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
           <div className="actions">
             <button className="btn-add" onClick={function(){setAdminAds(adminAds.concat([emptyItem()]));}}>+ إضافة إعلان</button>
@@ -239,6 +332,7 @@ function App() {
 
         <div className="card">
           <div className="card-title"><span className="icon">🔗</span> روابط التسويق</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب للصورة: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
           <ListEditorWithDimensions items={marketing} setter={setMarketing} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
           <div className="actions">
             <button className="btn-add" onClick={function(){setMarketing(marketing.concat([emptyItem()]));}}>+ إضافة رابط</button>

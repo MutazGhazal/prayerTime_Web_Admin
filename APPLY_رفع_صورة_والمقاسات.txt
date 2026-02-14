@@ -1,0 +1,75 @@
+===============================================
+تطبيق على: D:\prayer_time\web-admin\app.js
+===============================================
+
+■ 1) إضافة دوال رفع الصورة (بعد السطر الذي فيه emptyItem وقبل /* ========== Toast)
+
+const emptyItem = () => ({ _key: ++_itemId, title: "", body: "", image_url: "", link_url: "" });
+
+// للتخزين: أنشئ bucket باسم "uploads" في Supabase → Storage
+const STORAGE_BUCKET = "uploads";
+
+async function uploadImage(file) {
+  if (!supabase || !file) return null;
+  var ext = (file.name.split(".").pop() || "png").toLowerCase();
+  if (!/^(jpe?g|png|gif|webp)$/.test(ext)) ext = "png";
+  var path = "admin/" + Date.now() + "_" + (file.name || "image").replace(/[^a-zA-Z0-9._-]/g, "_") + "." + ext;
+  var res = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+  if (res.error) throw new Error(res.error.message);
+  var pub = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(res.data.path);
+  return pub.data.publicUrl;
+}
+
+function ImageUploadField(props) {
+  var label = props.label;
+  var requiredSize = props.requiredSize;
+  var value = props.value || "";
+  var onChange = props.onChange;
+  var disabled = props.disabled;
+  var inputRef = React.useRef(null);
+  var [uploading, setUploading] = React.useState(false);
+  function handleClick() { if (inputRef.current && !uploading) inputRef.current.click(); }
+  function handleFile(e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f || !f.type.startsWith("image/")) return;
+    setUploading(true);
+    uploadImage(f).then(function(url) { if (url && onChange) onChange(url); showToast("تم رفع الصورة ✓"); }).catch(function(err) { showToast(err.message || "فشل الرفع", "error"); }).finally(function() { setUploading(false); });
+  }
+  return (
+    <div style={{ marginTop: 8 }}>
+      {label && <label>{label}</label>}
+      {requiredSize && <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>المقاس المطلوب: {requiredSize}</div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <input type="url" value={value} onChange={function(e){if(onChange)onChange(e.target.value);}} placeholder="https://... أو ارفع صورة" style={{ flex: 1, minWidth: 180 }} />
+        <input type="file" ref={inputRef} accept="image/*" style={{ display: "none" }} onChange={handleFile} />
+        <button type="button" className="btn-secondary" onClick={handleClick} disabled={disabled || uploading}>{uploading ? "جاري الرفع..." : "📤 رفع صورة"}</button>
+      </div>
+    </div>
+  );
+}
+
+
+■ 2) المقاسات في البطاقات
+
+• إعلانات الأدمن: بعد <div className="card-title">...إعلانات الأدمن...
+  أضف سطراً:
+  <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب لصورة كل إعلان: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
+  وفي ListEditor أضف: requiredImageSize="360×140 بكسل" onUploadImage={uploadImage}
+
+• إعلانات للمستخدم: نفس السطر أعلاه ونفس الخصائص في ListEditor.
+
+• إدارة العملاء: أضف:
+  <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 مقاس اللوجو المطلوب: <strong>72×72</strong> بكسل (مربع)</div>
+  واستبدل حقل اللوجو (رابط) بـ:
+  <ImageUploadField label="اللوجو (رابط أو رفع صورة)" requiredSize="72×72 بكسل" value={clientMeta.logo_url||""} onChange={function(url){setClientMeta(Object.assign({},clientMeta,{logo_url:url}));}} disabled={saving} />
+
+• بيانات الشركة: أضف:
+  <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 مقاس الصورة المطلوب: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
+  وفي ContentEditor أضف: requiredImageSize="360×140 بكسل" onUploadImage={uploadImage}
+
+■ 3) في ListEditor: إضافة الخصائص requiredImageSize و onUploadImage، وعرض ImageUploadField بدل <input> للصورة عندما onUploadImage موجود.
+
+■ 4) في ContentEditor: إضافة requiredImageSize و onUploadImage، وعرض ImageUploadField للصورة عندما onUploadImage موجود.
+
+===============================================
