@@ -87,6 +87,7 @@ function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authMsg, setAuthMsg] = useState(null);
   const [email, setEmail] = useState("");
