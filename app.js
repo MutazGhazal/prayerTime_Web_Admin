@@ -108,6 +108,20 @@ function App() {
   const [purchases, setPurchases] = useState([]);
   const [newPurchase, setNewPurchase] = useState({ user_email: "", link_url: "", link_title: "", amount: "", notes: "", status: "confirmed" });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [previewLocation, setPreviewLocation] = useState("عمان - وزارة الأوقاف");
+  const [previewBgUrl, setPreviewBgUrl] = useState((config && config.PREVIEW_BG) || "https://images.unsplash.com/photo-1547970812-57d3e160046f?w=800");
+  const [previewScale, setPreviewScale] = useState(0.58);
+  const sectionRefs = { adminAds: React.useRef(null), userItems: React.useRef(null), clientMeta: React.useRef(null), section1: React.useRef(null), links: React.useRef(null), offers: React.useRef(null), marketingLinks: React.useRef(null) };
+  var detailsRef = React.useRef(null);
+  function scrollToSection(id) {
+    var r = sectionRefs[id];
+    if (r && r.current) {
+      var el = r.current;
+      var details = el.closest("details");
+      if (details) details.setAttribute("open", "open");
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
 
   if (!supabase) {
     return <div className="auth-page"><div className="auth-card">تعذر تشغيل لوحة الأدمن</div></div>;
@@ -391,12 +405,28 @@ function App() {
           <div className="stat-card"><div className="stat-value">{referrals.length}</div><div className="stat-label">الإحالات</div></div>
         </div>
 
+        <AppLivePreview
+          clientMeta={clientMeta}
+          section1={section1}
+          adminAds={adminAds}
+          userItems={userItems}
+          marketingLinks={marketingLinks}
+          selectedSlug={selectedSlug}
+          scrollToSection={scrollToSection}
+          previewLocation={previewLocation}
+          setPreviewLocation={setPreviewLocation}
+          previewBgUrl={previewBgUrl}
+          setPreviewBgUrl={setPreviewBgUrl}
+          previewScale={previewScale}
+          setPreviewScale={setPreviewScale}
+        />
+
         <div className="card mirror-banner">
-          <div className="muted" style={{fontSize:13}}>📱 المحتوى أدناه هو انعكاس لما يراه المستخدم في التطبيق وعند المشاركة. لا يمكن للمستخدم تعديل إعلانات الأدمن.</div>
+          <div className="muted" style={{fontSize:13}}>📱 انقر على أي عنصر في المعاينة للانتقال لتحريره. المحتوى أدناه مرتبط مباشرة بما يراه المستخدم في التطبيق.</div>
         </div>
 
         {isAdmin && (
-        <div className="card">
+        <div className="card" ref={sectionRefs.adminAds}>
           <div className="card-title"><span className="icon">📢</span> إعلانات الأدمن <span className="badge badge-green">(للدمن فقط — حتى 5)</span></div>
           <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب لصورة كل إعلان: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
           <ListEditor items={adminAds} setter={setAdminAds} showBody={true} showImage={true} maxItems={5} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
@@ -407,7 +437,7 @@ function App() {
         </div>
         )}
 
-        <div className="card">
+        <div className="card" ref={sectionRefs.userItems}>
           <div className="card-title"><span className="icon">👤</span> إعلانات للمستخدم <span className="badge badge-blue">(مخصصة لكل مستخدم — حتى 3)</span></div>
           {appUsers.length === 0 ? <div className="muted">لا يوجد مستخدمون. عند تسجيل المستخدمين في التطبيق سيظهرون هنا.</div> : (
             <div>
@@ -426,10 +456,10 @@ function App() {
           )}
         </div>
 
-        <details className="card">
+        <details className="card" ref={detailsRef}>
           <summary className="card-title" style={{cursor:"pointer"}}><span className="icon">⚙️</span> إعدادات إضافية (عملاء، شركة، روابط)</summary>
           <div style={{marginTop:16}}>
-        <div className="card" style={{marginTop:16}}>
+        <div className="card" style={{marginTop:16}} ref={sectionRefs.clientMeta}>
           <div className="card-title"><span className="icon">👥</span> إدارة العملاء</div>
           <div className="row">
             <div style={{ flex: 2 }}>
@@ -449,13 +479,13 @@ function App() {
           <div className="actions"><button className="btn-save" onClick={saveClientMeta} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ بيانات العميل"}</button></div>
         </div>
 
-        <div className="card" style={{marginTop:16}}>
+        <div className="card" style={{marginTop:16}} ref={sectionRefs.section1}>
           <div className="card-title"><span className="icon">🏢</span> بيانات الشركة</div>
           <ContentEditor item={section1} onChange={setSection1} />
           <div className="actions"><button className="btn-save" onClick={saveSection1} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ"}</button></div>
         </div>
 
-        <div className="card">
+        <div className="card" ref={sectionRefs.links}>
           <div className="card-title"><span className="icon">🔗</span> روابط الشركة</div>
           <ListEditor items={links} setter={setLinks} showBody={false} showImage={false} />
           <div className="actions">
@@ -464,7 +494,7 @@ function App() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="card" ref={sectionRefs.offers}>
           <div className="card-title"><span className="icon">🎁</span> عروض الشركة</div>
           <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب لصورة كل عرض: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
           <ListEditor items={offers} setter={setOffers} showBody={true} showImage={true} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
@@ -474,7 +504,7 @@ function App() {
           </div>
         </div>
 
-        <div className="card" style={{marginTop:16}}>
+        <div className="card" style={{marginTop:16}} ref={sectionRefs.marketingLinks}>
           <div className="card-title"><span className="icon">📣</span> روابط التسويق</div>
           <ListEditor items={marketingLinks} setter={setMarketingLinks} showBody={false} showImage={false} />
           <div className="actions">
@@ -518,6 +548,105 @@ function App() {
         )}
       </div>
     </ErrorBoundary>
+  );
+}
+
+/* ========== App Live Preview ========== */
+function AppLivePreview(props) {
+  var clientMeta = props.clientMeta || {};
+  var section1 = props.section1 || emptyItem();
+  var adminAds = props.adminAds || [];
+  var userItems = props.userItems || [];
+  var marketingLinks = props.marketingLinks || [];
+  var scrollToSection = props.scrollToSection || function(){};
+  var previewLocation = props.previewLocation || "عمان - وزارة الأوقاف";
+  var setPreviewLocation = props.setPreviewLocation || function(){};
+  var previewBgUrl = props.previewBgUrl || (config && config.PREVIEW_BG) || "https://images.unsplash.com/photo-1547970812-57d3e160046f?w=800";
+  var setPreviewBgUrl = props.setPreviewBgUrl || function(){};
+  var scale = props.previewScale ?? 0.58;
+  var setPreviewScale = props.setPreviewScale || function(){};
+  var w = 360 * scale;
+  var h = 640 * scale;
+  var bgUrl = previewBgUrl;
+  var hasContent = function(i){ return i && (i.title || i.body || i.image_url || i.link_url); };
+  var userList = userItems.filter(hasContent);
+  var adminList = adminAds.filter(hasContent).slice(0, 5);
+  var ordered = [];
+  if (adminList[3]) ordered.push({ item: adminList[3], type: "admin", idx: 3 });
+  if (userList[2]) ordered.push({ item: userList[2], type: "user", idx: 2 });
+  if (userList[1]) ordered.push({ item: userList[1], type: "user", idx: 1 });
+  if (adminList[2]) ordered.push({ item: adminList[2], type: "admin", idx: 2 });
+  if (adminList[1]) ordered.push({ item: adminList[1], type: "admin", idx: 1 });
+  if (adminList[0]) ordered.push({ item: adminList[0], type: "admin", idx: 0 });
+  if (adminList[4]) ordered.push({ item: adminList[4], type: "admin", idx: 4 });
+  var now = new Date();
+  var mockTimes = [{ n: "الفجر", t: "5:30" }, { n: "الشروق", t: "7:00" }, { n: "الظهر", t: "12:30" }, { n: "العصر", t: "3:45" }, { n: "المغرب", t: "6:15" }, { n: "العشاء", t: "7:45" }];
+  return (
+    <div className="card" style={{ overflow: "visible" }}>
+      <div className="card-title"><span className="icon">📱</span> معاينة حية للتطبيق <span className="badge badge-green">انقر على أي عنصر للتحرير</span></div>
+      <div className="app-preview-wrap">
+        <div className="app-preview-phone" style={{ width: w + 24, height: h + 60 }}>
+          <div className="app-preview-screen" style={{ width: w, height: h }}>
+            <div className="app-preview-bg" style={{ backgroundImage: "url(" + bgUrl + ")" }} />
+            <div className="app-preview-overlay" />
+            <div className="app-preview-content" style={{ fontSize: 11 * scale }}>
+              <div className="app-preview-header" onClick={function(){scrollToSection("clientMeta");}} title="تحرير: اللوجو والعنوان">
+                {clientMeta.logo_url ? <img src={clientMeta.logo_url} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: "contain" }} /> : <span style={{ fontSize: 18 }}>🕌</span>}
+                <span style={{ flex: 1, textAlign: "center", fontWeight: 700, color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{clientMeta.name || "أوقات الصلاة"}</span>
+              </div>
+              <div className="app-preview-body">
+                {userList[0] && (
+                  <div className="app-preview-card" onClick={function(){scrollToSection("userItems");}} title="تحرير: إعلان المستخدم 1">
+                    {userList[0].image_url && <img src={userList[0].image_url} alt="" style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 6 }} />}
+                    {userList[0].title && <div style={{ padding: "4px 8px", background: "rgba(0,0,0,0.5)", color: "#fff", borderRadius: 4, marginTop: 4, fontSize: 10 }}>{userList[0].title}</div>}
+                  </div>
+                )}
+                <div className="app-preview-card" style={{ padding: "8px 12px", background: "rgba(0,0,0,0.5)", borderRadius: 8 }} onClick={function(e){e.stopPropagation();}} title="تحرير: نص الموقع">
+                  <input type="text" value={previewLocation} onChange={function(e){setPreviewLocation(e.target.value);}} placeholder="الموقع" style={{ width: "100%", background: "transparent", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, padding: 0, marginBottom: 2 }} />
+                  <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 10 }}>{now.toLocaleDateString("ar")} | {now.toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}</div>
+                </div>
+                <div className="app-preview-card" style={{ padding: "8px 12px", background: "rgba(110,0,26,0.7)", borderRadius: 8 }}>
+                  <div style={{ color: "#fff", fontSize: 10 }}>الصلاة القادمة</div>
+                  <div style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>المغرب • 2س 30د</div>
+                </div>
+                <div className="app-preview-card" style={{ padding: "6px 10px", background: "rgba(0,0,0,0.5)", borderRadius: 8 }}>
+                  {mockTimes.map(function(m, i){ return <div key={i} style={{ display: "flex", justifyContent: "space-between", color: "#fff", fontSize: 10, padding: "2px 0" }}><span>{m.n}</span><span>{m.t}</span></div>; })}
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                  <div className="app-preview-btn" style={{ flex: 1, padding: "6px 10px", background: "#2E7D32", color: "#fff", borderRadius: 8, fontSize: 9, textAlign: "center" }}>مشاركة حالة اليوم</div>
+                  <div className="app-preview-btn" style={{ flex: 1, padding: "6px 10px", border: "1px solid #fff", color: "#fff", borderRadius: 8, fontSize: 9, textAlign: "center" }}>التذكير بالصلاة</div>
+                </div>
+                <div className="app-preview-ads" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginTop: 8 }}>
+                  {ordered.slice(0, 6).map(function(o, i){
+                    return (
+                      <div key={i} className="app-preview-ad" onClick={function(){ scrollToSection(o.type === "admin" ? "adminAds" : "userItems"); }} title={(o.type === "admin" ? "إعلان أدمن " : "إعلان مستخدم ") + (o.idx + 1)}>
+                        {o.item.image_url ? <img src={o.item.image_url} alt="" style={{ width: "100%", height: 50, objectFit: "cover", borderRadius: 6 }} /> : <div style={{ width: "100%", height: 50, background: "rgba(0,0,0,0.3)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.7)", fontSize: 9 }}>إعلان {i+1}</div>}
+                        {o.item.title && <div style={{ fontSize: 8, color: "#fff", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", marginTop: 2 }}>{o.item.title}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="app-preview-legend" style={{ maxWidth: 400 }}>
+          <p className="muted" style={{ margin: "0 0 8px 0", fontSize: 12 }}>نسخة حية مصغرة. انقر على اللوجو/العنوان أو الإعلانات للانتقال لتحريرها. يمكنك تعديل نص الموقع مباشرةً أعلاه.</p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+            <label style={{ fontSize: 11 }}>مقياس العرض:</label>
+            <select value={scale} onChange={function(e){ setPreviewScale(parseFloat(e.target.value)); }} style={{ fontSize: 11, padding: 4 }}>
+              <option value="0.45">صغير جداً</option>
+              <option value="0.58">صغير</option>
+              <option value="0.7">متوسط</option>
+              <option value="0.85">كبير</option>
+              <option value="1">كامل</option>
+            </select>
+            <label style={{ fontSize: 11 }}>خلفية:</label>
+            <input type="text" value={previewBgUrl} onChange={function(e){ setPreviewBgUrl(e.target.value); }} placeholder="رابط الصورة" style={{ flex: 1, minWidth: 120, fontSize: 11, padding: 6 }} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
