@@ -89,6 +89,10 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminAds, setAdminAds] = useState([emptyItem()]);
   const [marketing, setMarketing] = useState([emptyItem()]);
+  const [clientLinks, setClientLinks] = useState([emptyItem()]);
+  const [offers, setOffers] = useState([emptyItem()]);
+  const [referralVisits, setReferralVisits] = useState([]);
+  const [linkStats, setLinkStats] = useState([]);
 
   if (!supabase) {
     return <div className="auth-page"><div className="auth-card">تعذر تشغيل لوحة التحكم</div></div>;
@@ -128,6 +132,18 @@ function App() {
     var g = groupBySection(res.data || []);
     setAdminAds((g[4] || []).length ? g[4] : [emptyItem()]);
     setMarketing((g[5] || []).length ? g[5] : [emptyItem()]);
+    setClientLinks((g[6] || []).length ? g[6] : [emptyItem()]);
+    setOffers((g[7] || []).length ? g[7] : [emptyItem()]);
+    var refRes = await supabase.from("referral_visits").select("id,referral_code,referrer_client_slug,visitor_id,landing_url,created_at").order("created_at", { ascending: false }).limit(200);
+    if (!refRes.error) setReferralVisits(refRes.data || []);
+    if (!refRes.error && (refRes.data || []).length) {
+      var byCode = {};
+      for (var i = 0; i < (refRes.data || []).length; i++) {
+        var c = (refRes.data || [])[i].referral_code || "";
+        byCode[c] = (byCode[c] || 0) + 1;
+      }
+      setLinkStats(Object.keys(byCode).map(function(k){ return { referral_code: k, visits: byCode[k] }; }).sort(function(a,b){ return b.visits - a.visits; }));
+    } else setLinkStats([]);
   }
 
   async function signIn() {
@@ -171,6 +187,10 @@ function App() {
     setIsAdmin(false);
     setAdminAds([emptyItem()]);
     setMarketing([emptyItem()]);
+    setClientLinks([emptyItem()]);
+    setOffers([emptyItem()]);
+    setReferralVisits([]);
+    setLinkStats([]);
   }
 
   async function uploadImage(file) {
@@ -276,8 +296,8 @@ function App() {
               <div className="auth-actions">
                 <button className="btn-primary" onClick={signIn} disabled={authBusy}>{authBusy?"جاري الدخول...":"تسجيل الدخول"}</button>
                 <div className="auth-divider">أو</div>
-                <button type="button" className="btn-google" onClick={signInWithGoogle} disabled={authBusy}>
-                  <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                <button type="button" className="btn-google" onClick={signInWithGoogle} disabled={authBusy} title="الدخول عبر Google">
+                  <span style={{fontSize:18,fontWeight:700,color:"#4285F4"}}>G</span>
                   الدخول عبر Google
                 </button>
                 <button type="button" className="btn-link" style={{marginTop:8}} onClick={function(){setResetMode(true); setAuthMsg(null);}}>نسيت كلمة المرور؟</button>
@@ -349,6 +369,59 @@ function App() {
             <button className="btn-add" onClick={function(){setMarketing(marketing.concat([emptyItem()]));}}>+ إضافة رابط</button>
             <button className="btn-save" onClick={function(){saveAdminSection(5, marketing);}} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ الروابط"}</button>
           </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title"><span className="icon">🔗</span> روابط الكلينت</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب للصورة: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
+          <ListEditorWithDimensions items={clientLinks} setter={setClientLinks} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
+          <div className="actions">
+            <button className="btn-add" onClick={function(){setClientLinks(clientLinks.concat([emptyItem()]));}}>+ إضافة رابط</button>
+            <button className="btn-save" onClick={function(){saveAdminSection(6, clientLinks);}} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ روابط الكلينت"}</button>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title"><span className="icon">🎁</span> العروض</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب للصورة: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
+          <ListEditorWithDimensions items={offers} setter={setOffers} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
+          <div className="actions">
+            <button className="btn-add" onClick={function(){setOffers(offers.concat([emptyItem()]));}}>+ إضافة عرض</button>
+            <button className="btn-save" onClick={function(){saveAdminSection(7, offers);}} disabled={saving}>{saving?"جاري الحفظ...":"💾 حفظ العروض"}</button>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title"><span className="icon">📊</span> إحصائيات الروابط (زيارات الإحالة)</div>
+          <div className="table-wrap">
+            {linkStats.length ? (
+              <table>
+                <thead><tr><th>كود الإحالة</th><th>عدد الزيارات</th></tr></thead>
+                <tbody>
+                  {linkStats.slice(0, 50).map(function(row, idx){ return <tr key={idx}><td>{row.referral_code}</td><td>{row.visits}</td></tr>; })}
+                </tbody>
+              </table>
+            ) : <p className="muted">لا توجد بيانات زيارات إحالة حتى الآن.</p>}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title"><span className="icon">👥</span> الإحالات (آخر الزيارات)</div>
+          <div className="table-wrap">
+            {referralVisits.length ? (
+              <table>
+                <thead><tr><th>كود الإحالة</th><th>الكلينت</th><th>الرابط</th><th>التاريخ</th></tr></thead>
+                <tbody>
+                  {referralVisits.slice(0, 100).map(function(row){ return <tr key={row.id}><td>{row.referral_code}</td><td>{row.referrer_client_slug || "—"}</td><td>{row.landing_url ? (row.landing_url.length > 40 ? row.landing_url.slice(0,40)+"…" : row.landing_url) : "—"}</td><td>{row.created_at ? new Date(row.created_at).toLocaleString("ar") : "—"}</td></tr>; })}
+                </tbody>
+              </table>
+            ) : <p className="muted">لا توجد زيارات إحالة حتى الآن.</p>}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title"><span className="icon">🛒</span> المشتريات</div>
+          <p className="muted">لا يوجد جدول مشتريات في قاعدة البيانات الحالية. يمكن ربطه لاحقاً إذا أضفت جدول purchases.</p>
         </div>
       </div>
     </ErrorBoundary>
