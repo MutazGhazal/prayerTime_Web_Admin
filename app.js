@@ -85,6 +85,7 @@ class ErrorBoundary extends React.Component {
 /* ========== Main App ========== */
 function App() {
   const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authMsg, setAuthMsg] = useState(null);
@@ -127,6 +128,18 @@ function App() {
     return <div className="auth-page"><div className="auth-card">تعذر تشغيل لوحة الأدمن</div></div>;
   }
 
+  if (!authReady) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-logo">🕌</div>
+          <div className="auth-title">لوحة تحكم الأدمن</div>
+          <div className="auth-subtitle" style={{ padding: "20px 0" }}>جاري التحميل...</div>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(function() {
     var params = new URLSearchParams(window.location.search);
     var code = params.get("code");
@@ -135,10 +148,21 @@ function App() {
         if (res.error) setAuthMsg({ type: "error", text: res.error.message });
       }).finally(function() {
         window.history.replaceState({}, document.title, window.location.pathname);
+        supabase.auth.getSession().then(function(res) {
+          setSession(res.data.session);
+          setAuthReady(true);
+        });
+      });
+    } else {
+      supabase.auth.getSession().then(function(res) {
+        setSession(res.data.session);
+        setAuthReady(true);
       });
     }
-    supabase.auth.getSession().then(function(res) { setSession(res.data.session); });
-    var sub = supabase.auth.onAuthStateChange(function(_e, s) { setSession(s); });
+    var sub = supabase.auth.onAuthStateChange(function(_e, s) {
+      setSession(s);
+      setAuthReady(true);
+    });
     return function() { sub.data.subscription.unsubscribe(); };
   }, []);
 
