@@ -144,27 +144,36 @@ function App() {
   useEffect(function() {
     var params = new URLSearchParams(window.location.search);
     var code = params.get("code");
+    var resolved = false;
+    function markReady(sess) {
+      if (resolved) return;
+      resolved = true;
+      setSession(sess);
+      setAuthReady(true);
+    }
+    var timeout = setTimeout(function() { markReady(null); }, 5000);
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(function(res) {
         if (res.error) setAuthMsg({ type: "error", text: res.error.message });
       }).finally(function() {
         window.history.replaceState({}, document.title, window.location.pathname);
         supabase.auth.getSession().then(function(res) {
-          setSession(res.data.session);
-          setAuthReady(true);
-        });
+          markReady(res.data.session);
+          clearTimeout(timeout);
+        }).catch(function() { markReady(null); clearTimeout(timeout); });
       });
     } else {
       supabase.auth.getSession().then(function(res) {
-        setSession(res.data.session);
-        setAuthReady(true);
-      });
+        markReady(res.data.session);
+        clearTimeout(timeout);
+      }).catch(function() { markReady(null); clearTimeout(timeout); });
     }
     var sub = supabase.auth.onAuthStateChange(function(_e, s) {
+      if (!resolved) { resolved = true; clearTimeout(timeout); }
       setSession(s);
       setAuthReady(true);
     });
-    return function() { sub.data.subscription.unsubscribe(); };
+    return function() { clearTimeout(timeout); sub.data.subscription.unsubscribe(); };
   }, []);
 
   useEffect(function() {
