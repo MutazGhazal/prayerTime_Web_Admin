@@ -129,16 +129,22 @@ function App() {
     return <div className="auth-page"><div className="auth-card">تعذر تشغيل لوحة الأدمن</div></div>;
   }
 
-  if (!authReady) {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <div className="auth-logo">🕌</div>
-          <div className="auth-title">لوحة تحكم الأدمن</div>
-          <div className="auth-subtitle" style={{ padding: "20px 0" }}>جاري التحميل...</div>
+  /* عرض نموذج الدخول مباشرة عند عدم وجود جلسة - تجنب التعطل على "جاري التحميل" */
+  if (!session) {
+    if (!authReady) {
+      setTimeout(function() { setAuthReady(true); }, 1);
+    }
+    if (!authReady) {
+      return (
+        <div className="auth-page">
+          <div className="auth-card">
+            <div className="auth-logo">🕌</div>
+            <div className="auth-title">لوحة تحكم الأدمن</div>
+            <div className="auth-subtitle" style={{ padding: "20px 0" }}>جاري التحميل...</div>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
   useEffect(function() {
@@ -148,25 +154,24 @@ function App() {
     function markReady(sess) {
       if (resolved) return;
       resolved = true;
-      setSession(sess);
+      setSession(typeof sess !== "undefined" ? sess : null);
       setAuthReady(true);
     }
-    var timeout = setTimeout(function() { markReady(null); }, 5000);
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(function(res) {
-        if (res.error) setAuthMsg({ type: "error", text: res.error.message });
-      }).finally(function() {
-        window.history.replaceState({}, document.title, window.location.pathname);
-        supabase.auth.getSession().then(function(res) {
-          markReady(res.data.session);
-          clearTimeout(timeout);
-        }).catch(function() { markReady(null); clearTimeout(timeout); });
-      });
-    } else {
-      supabase.auth.getSession().then(function(res) {
-        markReady(res.data.session);
-        clearTimeout(timeout);
-      }).catch(function() { markReady(null); clearTimeout(timeout); });
+    var timeout = setTimeout(function() { markReady(null); }, 1500);
+    try {
+      if (code) {
+        supabase.auth.exchangeCodeForSession(code).then(function(res) {
+          if (res.error) setAuthMsg({ type: "error", text: res.error.message });
+        }).finally(function() {
+          window.history.replaceState({}, document.title, window.location.pathname);
+          supabase.auth.getSession().then(function(r) { markReady(r.data.session); clearTimeout(timeout); }).catch(function() { markReady(null); clearTimeout(timeout); });
+        });
+      } else {
+        supabase.auth.getSession().then(function(r) { markReady(r.data.session); clearTimeout(timeout); }).catch(function() { markReady(null); clearTimeout(timeout); });
+      }
+    } catch (e) {
+      markReady(null);
+      clearTimeout(timeout);
     }
     var sub = supabase.auth.onAuthStateChange(function(_e, s) {
       if (!resolved) { resolved = true; clearTimeout(timeout); }
