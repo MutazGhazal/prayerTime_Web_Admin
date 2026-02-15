@@ -702,7 +702,7 @@ function ListEditor(props) {
   var showImage = props.showImage !== false;
   var maxItems = props.maxItems;
   var onUpload = props.onUpload;
-  var uploading = props.uploading;
+  var uploading = props.uploading === true;
   var dimensionsHint = props.dimensionsHint || AD_IMAGE_DIMENSIONS;
   function handleUpdate(index, field, value) {
     var updated = items.slice();
