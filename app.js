@@ -125,29 +125,8 @@ function App() {
     }
   }
 
-  if (!supabase) {
-    return <div className="auth-page"><div className="auth-card">تعذر تشغيل لوحة الأدمن</div></div>;
-  }
-
-  /* عرض نموذج الدخول مباشرة عند عدم وجود جلسة - تجنب التعطل على "جاري التحميل" */
-  if (!session) {
-    if (!authReady) {
-      setTimeout(function() { setAuthReady(true); }, 1);
-    }
-    if (!authReady) {
-      return (
-        <div className="auth-page">
-          <div className="auth-card">
-            <div className="auth-logo">🕌</div>
-            <div className="auth-title">لوحة تحكم الأدمن</div>
-            <div className="auth-subtitle" style={{ padding: "20px 0" }}>جاري التحميل...</div>
-          </div>
-        </div>
-      );
-    }
-  }
-
   useEffect(function() {
+    if (!supabase) return;
     var params = new URLSearchParams(window.location.search);
     var code = params.get("code");
     var resolved = false;
@@ -364,6 +343,21 @@ function App() {
     return acc;
   }
 
+  /* ===== EARLY RETURNS (بعد كل الـ hooks) ===== */
+  if (!supabase) {
+    return <div className="auth-page"><div className="auth-card">تعذر تشغيل لوحة الأدمن</div></div>;
+  }
+  if (!session && !authReady) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-logo">🕌</div>
+          <div className="auth-title">لوحة تحكم الأدمن</div>
+          <div className="auth-subtitle" style={{ padding: "20px 0" }}>جاري التحميل...</div>
+        </div>
+      </div>
+    );
+  }
   /* ===== LOGIN PAGE ===== */
   if (!session) {
     return (
