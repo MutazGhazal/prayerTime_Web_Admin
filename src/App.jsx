@@ -232,13 +232,14 @@ export default function App({ config, supabase }) {
     setShowForgotPw(false);
   }
 
-  async function uploadImage(file) {
+  async function uploadImage(file, folder) {
     const bucket = (config?.BUCKET) || "uploads";
     if (!file) return "";
+    if (!folder) folder = "general";
     setUploading(true);
     try {
       const ext = (file.name?.split(".").pop()) || "jpg";
-      const path = "admin/" + Date.now() + "." + ext;
+      const path = folder + "/" + Date.now() + "." + ext;
       const res = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
       if (res.error) { showToast("خطأ رفع: " + res.error.message, "error"); return ""; }
       const urlRes = supabase.storage.from(bucket).getPublicUrl(path);
@@ -556,7 +557,7 @@ export default function App({ config, supabase }) {
           <div className="card" ref={sectionRefs.adminAds}>
             <div className="card-title"><span className="icon">📢</span> إعلانات الأدمن <span className="badge badge-green">(للدمن فقط — حتى 5)</span></div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس: <strong>360×140</strong> بكسل</div>
-            <ListEditor items={adminAds} setter={setAdminAds} showBody showImage maxItems={5} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
+            <ListEditor items={adminAds} setter={setAdminAds} showBody showImage maxItems={5} onUpload={(f) => uploadImage(f, "admin")} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
             <div className="actions">
               <button className="btn-add" onClick={() => adminAds.length < 5 && setAdminAds([...adminAds, emptyItem()])} disabled={adminAds.length >= 5}>+ إضافة إعلان</button>
               <button className="btn-save" onClick={saveAdminAds} disabled={saving}>{saving ? "جاري الحفظ..." : "💾 حفظ الإعلانات"}</button>
@@ -621,7 +622,7 @@ export default function App({ config, supabase }) {
                 </div>
               )}
               <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس: <strong>360×140</strong> بكسل</div>
-              <ListEditor items={userItems} setter={setUserItems} showBody showImage maxItems={3} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
+              <ListEditor items={userItems} setter={setUserItems} showBody showImage maxItems={3} onUpload={(f) => uploadImage(f, "users/" + (selectedUserId || "unknown"))} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
               <div className="actions">
                 <button className="btn-add" onClick={() => userItems.length < 3 && setUserItems([...userItems, emptyItem()])} disabled={userItems.length >= 3}>+ إضافة عنصر</button>
                 <button className="btn-save" onClick={saveUserItems} disabled={saving}>{saving ? "جاري الحفظ..." : "💾 حفظ محتوى المستخدم"}</button>
@@ -650,7 +651,7 @@ export default function App({ config, supabase }) {
 
             <div className="card" style={{ marginTop: 16 }} ref={sectionRefs.section1}>
               <div className="card-title"><span className="icon">🏢</span> بيانات الشركة</div>
-              <ContentEditor item={section1} onChange={setSection1} />
+              <ContentEditor item={section1} onChange={setSection1} onUpload={(f) => uploadImage(f, "clients/" + selectedSlug)} uploading={uploading} />
               <div className="actions"><button className="btn-save" onClick={saveSection1} disabled={saving}>{saving ? "جاري الحفظ..." : "💾 حفظ"}</button></div>
             </div>
 
@@ -666,7 +667,7 @@ export default function App({ config, supabase }) {
             <div className="card" ref={sectionRefs.offers}>
               <div className="card-title"><span className="icon">🎁</span> عروض الشركة</div>
               <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس: <strong>360×140</strong> بكسل</div>
-              <ListEditor items={offers} setter={setOffers} showBody showImage onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
+              <ListEditor items={offers} setter={setOffers} showBody showImage onUpload={(f) => uploadImage(f, "clients/" + selectedSlug + "/offers")} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
               <div className="actions">
                 <button className="btn-add" onClick={() => setOffers([...offers, emptyItem()])}>+ إضافة عرض</button>
                 <button className="btn-save" onClick={saveOffers} disabled={saving}>{saving ? "جاري الحفظ..." : "💾 حفظ العروض"}</button>
@@ -799,17 +800,35 @@ function AppLivePreview(props) {
   );
 }
 
-function ContentEditor({ item, onChange }) {
+function ContentEditor({ item, onChange, onUpload, uploading = false }) {
   return (
     <div>
       <div className="row">
         <div style={{ flex: 1 }}><label>العنوان</label><input value={item.title || ""} onChange={e => onChange({ ...item, title: e.target.value })} /></div>
         <div style={{ flex: 1 }}><label>رابط</label><input value={item.link_url || ""} onChange={e => onChange({ ...item, link_url: e.target.value })} placeholder="https://..." /></div>
       </div>
-      <div className="row" style={{ marginTop: 8 }}>
-        <div style={{ flex: 1 }}><label>صورة (رابط)</label><input value={item.image_url || ""} onChange={e => onChange({ ...item, image_url: e.target.value })} placeholder="https://..." /></div>
+      <div style={{ marginTop: 8 }}>
+        <label>صورة</label>
+        <div className="row" style={{ alignItems: "flex-end" }}>
+          <div style={{ flex: 1 }}>
+            <input value={item.image_url || ""} onChange={e => onChange({ ...item, image_url: e.target.value })} placeholder="رابط الصورة أو ارفع ملف..." />
+          </div>
+          {onUpload && (
+            <div>
+              <label className="btn-secondary" style={{ display: "inline-block", padding: "10px 16px", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap", fontSize: 13 }}>
+                {uploading ? "جاري الرفع..." : "📷 رفع صورة"}
+                <input type="file" accept="image/*" style={{ display: "none" }} disabled={uploading} onChange={async (e) => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  const url = await onUpload(file);
+                  if (url) onChange({ ...item, image_url: url });
+                  e.target.value = "";
+                }} />
+              </label>
+            </div>
+          )}
+        </div>
+        {item.image_url && <div className="img-preview"><img src={item.image_url} alt="" onError={e => { e.target.parentNode.style.display = "none"; }} /></div>}
       </div>
-      {item.image_url && <div className="img-preview"><img src={item.image_url} alt="" onError={e => { e.target.parentNode.style.display = "none"; }} /></div>}
       <div style={{ marginTop: 8 }}><label>النص / الوصف</label><textarea value={item.body || ""} onChange={e => onChange({ ...item, body: e.target.value })} /></div>
     </div>
   );
