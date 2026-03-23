@@ -273,9 +273,11 @@ function App() {
   async function updateUserRole(userId, newRole) {
     setSaving(true);
     try {
-      var res = await supabase.from("app_users").update({ role: newRole }).eq("user_id", userId);
-      if (res.error) { showToast(res.error.message, "error"); return; }
-      showToast("تم تحديث الصلاحية ✓");
+      console.log("Updating role for", userId, "to", newRole);
+      var res = await supabase.from("app_users").update({ role: newRole }).eq("user_id", userId).select();
+      if (res.error) { showToast("خطأ تحديث القاعدة: " + res.error.message, "error"); return; }
+      if (!res.data || res.data.length === 0) { showToast("فشل التحديث: لم يتم العثور على المستخدم في القاعدة", "error"); return; }
+      showToast("تم تحديث الصلاحية لـ (" + newRole + ") ✓");
       loadAppUsers();
     } finally { setSaving(false); }
   }
@@ -283,8 +285,9 @@ function App() {
   async function toggleUserApproval(userId, isApproved) {
     setSaving(true);
     try {
-      var res = await supabase.from("app_users").update({ is_approved: isApproved }).eq("user_id", userId);
-      if (res.error) { showToast(res.error.message, "error"); return; }
+      var res = await supabase.from("app_users").update({ is_approved: isApproved }).eq("user_id", userId).select();
+      if (res.error) { showToast("خطأ تحديث الحالة: " + res.error.message, "error"); return; }
+      if (!res.data || res.data.length === 0) { showToast("فشل التحديث: لم يتم العثور على المستخدم", "error"); return; }
       showToast("تم تحديث حالة القبول ✓");
       loadAppUsers();
     } finally { setSaving(false); }
