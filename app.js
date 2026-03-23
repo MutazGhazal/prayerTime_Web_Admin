@@ -112,7 +112,7 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [previewLocation, setPreviewLocation] = useState("عمان - وزارة الأوقاف");
   const [previewBgUrl, setPreviewBgUrl] = useState((config && config.PREVIEW_BG) || "https://images.unsplash.com/photo-1547970812-57d3e160046f?w=800");
-  const [previewScale, setPreviewScale] = useState(0.58);
+  const [previewScale, setPreviewScale] = useState(1.0);
   const sectionRefs = { adminAds: React.useRef(null), userItems: React.useRef(null), clientMeta: React.useRef(null), section1: React.useRef(null), links: React.useRef(null), offers: React.useRef(null), marketingLinks: React.useRef(null) };
   var detailsRef = React.useRef(null);
   function scrollToSection(id) {
@@ -696,7 +696,7 @@ function AppLivePreview(props) {
                   </div>
                 )}
                 <div className="app-preview-card" style={{ padding: "8px 12px", background: "rgba(0,0,0,0.5)", borderRadius: 8 }} onClick={function(e){e.stopPropagation();}} title="تحرير: نص الموقع">
-                  <input type="text" value={previewLocation} onChange={function(e){setPreviewLocation(e.target.value);}} placeholder="الموقع" style={{ width: "100%", background: "transparent", border: "none", color: "#fff", fontWeight: 700, fontSize: 12, padding: 0, marginBottom: 2 }} />
+                  <div style={{ color: "#fff", fontWeight: 700, fontSize: 12, padding: 0 }}>{previewLocation}</div>
                   <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 10 }}>{now.toLocaleDateString("ar")} | {now.toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}</div>
                 </div>
                 <div className="app-preview-card" style={{ padding: "8px 12px", background: "rgba(110,0,26,0.7)", borderRadius: 8 }}>
@@ -722,21 +722,6 @@ function AppLivePreview(props) {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-        <div className="app-preview-legend" style={{ maxWidth: 400 }}>
-          <p className="muted" style={{ margin: "0 0 8px 0", fontSize: 12 }}>نسخة حية مصغرة. انقر على اللوجو/العنوان أو الإعلانات للانتقال لتحريرها. يمكنك تعديل نص الموقع مباشرةً أعلاه.</p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
-            <label style={{ fontSize: 11 }}>مقياس العرض:</label>
-            <select value={scale} onChange={function(e){ setPreviewScale(parseFloat(e.target.value)); }} style={{ fontSize: 11, padding: 4 }}>
-              <option value="0.45">صغير جداً</option>
-              <option value="0.58">صغير</option>
-              <option value="0.7">متوسط</option>
-              <option value="0.85">كبير</option>
-              <option value="1">كامل</option>
-            </select>
-            <label style={{ fontSize: 11 }}>خلفية:</label>
-            <input type="text" value={previewBgUrl} onChange={function(e){ setPreviewBgUrl(e.target.value); }} placeholder="رابط الصورة" style={{ flex: 1, minWidth: 120, fontSize: 11, padding: 6 }} />
           </div>
         </div>
       </div>
