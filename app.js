@@ -258,7 +258,7 @@ function App() {
   }
   async function loadReferrals() { var res = await supabase.from("referral_visits").select("*").order("created_at", { ascending: false }).limit(50); setReferrals(res.data || []); }
   async function loadAppUsers() {
-    var res = await supabase.from("app_users").select("user_id,email,full_name,provider,last_login,created_at,role,is_approved").order("last_login", { ascending: false });
+    var res = await supabase.from("app_users").select("user_id,email,full_name,provider,last_login,created_at,role,is_approved,supervisor_id").order("last_login", { ascending: false });
     if (res.error) { showToast("خطأ تحميل المستخدمين: " + res.error.message, "error"); return; }
     setAppUsers(res.data || []);
     if (!selectedUserId && res.data && res.data.length) setSelectedUserId(res.data[0].user_id);
@@ -279,6 +279,16 @@ function App() {
       if (res.error) { showToast("خطأ تحديث القاعدة: " + res.error.message, "error"); return; }
       if (!res.data || res.data.length === 0) { showToast("فشل التحديث: لم يتم العثور على المستخدم في القاعدة", "error"); return; }
       showToast("تم تحديث الصلاحية لـ (" + newRole + ") ✓");
+      loadAppUsers();
+    } finally { setSaving(false); }
+  }
+
+  async function updateUserSupervisor(userId, newSupervisorId) {
+    setSaving(true);
+    try {
+      var res = await supabase.from("app_users").update({ supervisor_id: newSupervisorId || null }).eq("user_id", userId).select();
+      if (res.error) { showToast("خطأ تحديث المشرف: " + res.error.message, "error"); return; }
+      showToast("تم تحديث المشرف ✓");
       loadAppUsers();
     } finally { setSaving(false); }
   }
@@ -534,6 +544,21 @@ function App() {
                         >
                           <option value="false">⏳ معلق (Pending)</option>
                           <option value="true">✅ معتمد (Approved)</option>
+                        </select>
+                      </div>
+
+                      <div className="mgmt-control">
+                        <span>نقل للمشرف / الأدمن:</span>
+                        <select 
+                          className="mgmt-select"
+                          value={currentUser.supervisor_id || ""} 
+                          onChange={function(e){updateUserSupervisor(currentUser.user_id, e.target.value);}}
+                          disabled={saving}
+                        >
+                          <option value="">-- بدون مشرف --</option>
+                          {appUsers.filter(function(u){ return (u.role === "supervisor" || u.role === "admin") && u.user_id !== currentUser.user_id; }).map(function(s){
+                            return <option key={s.user_id} value={s.user_id}>{s.full_name || s.email || s.user_id} ({s.role})</option>;
+                          })}
                         </select>
                       </div>
                     </div>
