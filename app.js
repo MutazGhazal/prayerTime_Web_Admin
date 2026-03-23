@@ -249,7 +249,7 @@ function App() {
     setOffers(g[3] || [emptyItem()]);
   }
   async function loadAdminSections() {
-    var res = await supabase.from("admin_sections").select("*").order("sort_order", { ascending: true });
+    var res = await supabase.from("app_ads").select("*").eq("type", "admin").order("sort_order", { ascending: true });
     if (res.error) { showToast(res.error.message, "error"); return; }
     var g = groupBySection(res.data || []);
     setAdminAds(g[4] || [emptyItem()]);
@@ -257,16 +257,36 @@ function App() {
   }
   async function loadReferrals() { var res = await supabase.from("referral_visits").select("*").order("created_at", { ascending: false }).limit(50); setReferrals(res.data || []); }
   async function loadAppUsers() {
-    var res = await supabase.from("app_users").select("user_id,email,full_name,provider,last_login,created_at").order("last_login", { ascending: false });
+    var res = await supabase.from("app_users").select("user_id,email,full_name,provider,last_login,created_at,role,is_approved").order("last_login", { ascending: false });
     setAppUsers(res.data || []);
     if (!selectedUserId && res.data && res.data.length) setSelectedUserId(res.data[0].user_id);
   }
   async function loadLinkStats() { var res = await supabase.from("link_stats").select("*").order("total_clicks", { ascending: false }).limit(50); if (res.data) setLinkStats(res.data); }
   async function loadPurchases() { var res = await supabase.from("purchases").select("*").order("created_at", { ascending: false }).limit(50); if (res.data) setPurchases(res.data); }
   async function loadUserSections(uid) {
-    var res = await supabase.from("app_user_sections").select("*").eq("user_id", uid).order("sort_order", { ascending: true });
+    var res = await supabase.from("app_ads").select("*").in("type", ["profile", "user"]).eq("owner_id", uid).order("sort_order", { ascending: true });
     if (res.error) { showToast(res.error.message, "error"); return; }
     setUserItems((res.data || []).length ? res.data : [emptyItem()]);
+  }
+
+  async function updateUserRole(userId, newRole) {
+    setSaving(true);
+    try {
+      var res = await supabase.from("app_users").update({ role: newRole }).eq("user_id", userId);
+      if (res.error) { showToast(res.error.message, "error"); return; }
+      showToast("تم تحديث الصلاحية ✓");
+      loadAppUsers();
+    } finally { setSaving(false); }
+  }
+
+  async function toggleUserApproval(userId, isApproved) {
+    setSaving(true);
+    try {
+      var res = await supabase.from("app_users").update({ is_approved: isApproved }).eq("user_id", userId);
+      if (res.error) { showToast(res.error.message, "error"); return; }
+      showToast("تم تحديث حالة القبول ✓");
+      loadAppUsers();
+    } finally { setSaving(false); }
   }
 
   async function saveClientMeta() {
@@ -286,15 +306,15 @@ function App() {
     if (!selectedUserId) return;
     setSaving(true);
     try {
-      await supabase.from("app_user_sections").delete().eq("user_id", selectedUserId);
+      await supabase.from("app_ads").delete().in("type", ["profile", "user"]).eq("owner_id", selectedUserId);
       var payload = [];
       for (var idx = 0; idx < userItems.length; idx++) {
         var i = userItems[idx];
         if (i.title || i.body || i.image_url || i.link_url) {
-          payload.push({ user_id: selectedUserId, section: 1, title: i.title, body: i.body, image_url: i.image_url, link_url: i.link_url, sort_order: idx });
+          payload.push({ type: idx === 0 ? "profile" : "user", owner_id: selectedUserId, section: 1, title: i.title, body: i.body, image_url: i.image_url, link_url: i.link_url, sort_order: idx, is_active: true });
         }
       }
-      if (payload.length) { var res = await supabase.from("app_user_sections").insert(payload); if (res.error) { showToast(res.error.message, "error"); return; } }
+      if (payload.length) { var res = await supabase.from("app_ads").insert(payload); if (res.error) { showToast(res.error.message, "error"); return; } }
       showToast("تم حفظ محتوى المستخدم ✓");
     } finally { setSaving(false); }
   }
@@ -322,15 +342,15 @@ function App() {
     if (payload.length) { var res = await supabase.from("client_sections").insert(payload); if (res.error) showToast(res.error.message, "error"); }
   }
   async function saveAdminList(section, items) {
-    await supabase.from("admin_sections").delete().eq("section", section);
+    await supabase.from("app_ads").delete().eq("type", "admin").eq("section", section);
     var payload = [];
     for (var idx = 0; idx < items.length; idx++) {
       var i = items[idx];
       if (i.title || i.body || i.image_url || i.link_url) {
-        payload.push({ section: section, title: i.title, body: i.body, image_url: i.image_url, link_url: i.link_url, sort_order: idx, is_active: true });
+        payload.push({ type: "admin", section: section, title: i.title, body: i.body, image_url: i.image_url, link_url: i.link_url, sort_order: idx, is_active: true });
       }
     }
-    if (payload.length) { var res = await supabase.from("admin_sections").insert(payload); if (res.error) showToast(res.error.message, "error"); }
+    if (payload.length) { var res = await supabase.from("app_ads").insert(payload); if (res.error) showToast(res.error.message, "error"); }
   }
 
   function groupBySection(items) {
@@ -460,14 +480,56 @@ function App() {
         )}
 
         <div className="card" ref={sectionRefs.userItems}>
-          <div className="card-title"><span className="icon">👤</span> إعلانات للمستخدم <span className="badge badge-blue">(مخصصة لكل مستخدم — حتى 3)</span></div>
+          <div className="card-title"><span className="icon">👤</span> إعلانات للمستخدم وإدارة الصلاحيات</div>
           {appUsers.length === 0 ? <div className="muted">لا يوجد مستخدمون. عند تسجيل المستخدمين في التطبيق سيظهرون هنا.</div> : (
             <div>
               <label>اختيار المستخدم</label>
               <select value={selectedUserId} onChange={function(e){setSelectedUserId(e.target.value);}}>
-                {appUsers.map(function(u){return <option key={u.user_id} value={u.user_id}>{u.email||u.full_name||u.user_id}</option>;})}
+                {appUsers.map(function(u){return <option key={u.user_id} value={u.user_id}>{u.email||u.full_name||u.user_id} ({u.role||"user"})</option>;})}
               </select>
-              {currentUser && <div style={{display:"flex",gap:12,marginTop:8}}><span className="badge badge-blue">{currentUser.provider||"email"}</span><span className="muted">آخر دخول: {currentUser.last_login?new Date(currentUser.last_login).toLocaleString():"-"}</span></div>}
+              {currentUser && (
+                <div style={{ padding: "12px", border: "1px solid #ddd", borderRadius: "8px", marginTop: "12px", marginBottom: "16px", backgroundColor: "#fafafa" }}>
+                  <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
+                    <div>
+                      <span className="badge badge-blue">{currentUser.provider || "email"}</span>
+                    </div>
+                    <div>
+                      <span className="muted" style={{ fontSize: 13 }}>آخر دخول: {currentUser.last_login ? new Date(currentUser.last_login).toLocaleString() : "-"}</span>
+                    </div>
+                  </div>
+                  
+                  {isAdmin && (
+                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #eee" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>دور المستخدم:</span>
+                        <select 
+                          style={{ margin: 0, padding: "4px 8px", width: "auto" }} 
+                          value={currentUser.role || "user"} 
+                          onChange={function(e){updateUserRole(currentUser.user_id, e.target.value);}}
+                          disabled={saving}
+                        >
+                          <option value="user">مستخدم عادي (User)</option>
+                          <option value="supervisor">مشرف (Supervisor)</option>
+                          <option value="admin">مدير (Admin)</option>
+                        </select>
+                      </div>
+                      
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>حالة الموافقة:</span>
+                        <select 
+                          style={{ margin: 0, padding: "4px 8px", width: "auto" }} 
+                          value={currentUser.is_approved ? "true" : "false"} 
+                          onChange={function(e){toggleUserApproval(currentUser.user_id, e.target.value === "true");}}
+                          disabled={saving}
+                        >
+                          <option value="false">⏳ معلق (Pending)</option>
+                          <option value="true">✅ معتمد (Approved)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس المطلوب للصورة: <strong>360×140</strong> بكسل (أو 720×280 للوضوح)</div>
               <ListEditor items={userItems} setter={setUserItems} showBody={true} showImage={true} maxItems={3} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
               <div className="actions">
