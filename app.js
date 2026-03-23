@@ -492,7 +492,7 @@ function App() {
                 {appUsers.map(function(u){return <option key={u.user_id} value={u.user_id}>{u.email||u.full_name||u.user_id} ({u.role||"user"})</option>;})}
               </select>
               {currentUser && (
-                <div style={{ padding: "12px", border: "1px solid #ddd", borderRadius: "8px", marginTop: "12px", marginBottom: "16px", backgroundColor: "#fafafa" }}>
+                <div className="user-mgmt-card">
                   <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
                     <div>
                       <span className="badge badge-blue">{currentUser.provider || "email"}</span>
@@ -500,14 +500,19 @@ function App() {
                     <div>
                       <span className="muted" style={{ fontSize: 13 }}>آخر دخول: {currentUser.last_login ? new Date(currentUser.last_login).toLocaleString() : "-"}</span>
                     </div>
+                    <div>
+                      <span className={`badge ${currentUser.is_approved ? 'badge-green' : 'badge-orange'}`}>
+                        {currentUser.is_approved ? "✅ معتمد" : "⏳ معلق"}
+                      </span>
+                    </div>
                   </div>
                   
                   {isAdmin && (
-                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #eee" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>دور المستخدم:</span>
+                    <div className="user-mgmt-grid" style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #eee" }}>
+                      <div className="mgmt-control">
+                        <span>دور المستخدم:</span>
                         <select 
-                          style={{ margin: 0, padding: "4px 8px", width: "auto" }} 
+                          className="mgmt-select"
                           value={currentUser.role || "user"} 
                           onChange={function(e){updateUserRole(currentUser.user_id, e.target.value);}}
                           disabled={saving}
@@ -518,10 +523,10 @@ function App() {
                         </select>
                       </div>
                       
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>حالة الموافقة:</span>
+                      <div className="mgmt-control">
+                        <span>حالة الموافقة:</span>
                         <select 
-                          style={{ margin: 0, padding: "4px 8px", width: "auto" }} 
+                          className="mgmt-select"
                           value={currentUser.is_approved ? "true" : "false"} 
                           onChange={function(e){toggleUserApproval(currentUser.user_id, e.target.value === "true");}}
                           disabled={saving}
