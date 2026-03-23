@@ -271,7 +271,7 @@ export default function App({ config, supabase }) {
   }
 
   async function loadAdminSections() {
-    const res = await supabase.from("admin_sections").select("*").order("sort_order", { ascending: true });
+    const res = await supabase.from("app_ads").select("*").eq("type", "admin").order("sort_order", { ascending: true });
     if (res.error) { showToast(res.error.message, "error"); return; }
     const g = groupBySection(res.data || []);
     setAdminAds(g[4] || [emptyItem()]);
@@ -300,7 +300,7 @@ export default function App({ config, supabase }) {
   }
 
   async function loadUserSections(uid) {
-    const res = await supabase.from("app_user_sections").select("*").eq("user_id", uid).order("sort_order", { ascending: true });
+    const res = await supabase.from("app_ads").select("*").in("type", ["profile", "user"]).eq("owner_id", uid).order("sort_order", { ascending: true });
     if (res.error) { showToast(res.error.message, "error"); return; }
     setUserItems((res.data || []).length ? res.data : [emptyItem()]);
   }
@@ -355,12 +355,25 @@ export default function App({ config, supabase }) {
     if (!selectedUserId) return;
     setSaving(true);
     try {
-      await supabase.from("app_user_sections").delete().eq("user_id", selectedUserId);
+      await supabase.from("app_ads").delete().in("type", ["profile", "user"]).eq("owner_id", selectedUserId);
       const payload = userItems
-        .map((i, idx) => (i.title || i.body || i.image_url || i.link_url) ? { user_id: selectedUserId, section: 1, title: i.title, body: i.body, image_url: i.image_url, link_url: i.link_url, sort_order: idx } : null)
+        .map((i, idx) => {
+          if (!(i.title || i.body || i.image_url || i.link_url)) return null;
+          return {
+            type: idx === 0 ? "profile" : "user",
+            owner_id: selectedUserId,
+            section: 1,
+            title: i.title,
+            body: i.body,
+            image_url: i.image_url,
+            link_url: i.link_url,
+            sort_order: idx,
+            is_active: true
+          };
+        })
         .filter(Boolean);
       if (payload.length) {
-        const res = await supabase.from("app_user_sections").insert(payload);
+        const res = await supabase.from("app_ads").insert(payload);
         if (res.error) { showToast(res.error.message, "error"); return; }
       }
       showToast("تم حفظ محتوى المستخدم ✓");
@@ -400,12 +413,12 @@ export default function App({ config, supabase }) {
   }
 
   async function saveAdminList(section, items) {
-    await supabase.from("admin_sections").delete().eq("section", section);
+    await supabase.from("app_ads").delete().eq("type", "admin").eq("section", section);
     const payload = items
-      .map((i, idx) => (i.title || i.body || i.image_url || i.link_url) ? { section, title: i.title, body: i.body, image_url: i.image_url, link_url: i.link_url, sort_order: idx, is_active: true } : null)
+      .map((i, idx) => (i.title || i.body || i.image_url || i.link_url) ? { type: "admin", section, title: i.title, body: i.body, image_url: i.image_url, link_url: i.link_url, sort_order: idx, is_active: true } : null)
       .filter(Boolean);
     if (payload.length) {
-      const res = await supabase.from("admin_sections").insert(payload);
+      const res = await supabase.from("app_ads").insert(payload);
       if (res.error) showToast(res.error.message, "error");
     }
   }
