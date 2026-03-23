@@ -258,6 +258,7 @@ function App() {
   async function loadReferrals() { var res = await supabase.from("referral_visits").select("*").order("created_at", { ascending: false }).limit(50); setReferrals(res.data || []); }
   async function loadAppUsers() {
     var res = await supabase.from("app_users").select("user_id,email,full_name,provider,last_login,created_at,role,is_approved").order("last_login", { ascending: false });
+    if (res.error) { showToast("خطأ تحميل المستخدمين: " + res.error.message, "error"); return; }
     setAppUsers(res.data || []);
     if (!selectedUserId && res.data && res.data.length) setSelectedUserId(res.data[0].user_id);
   }

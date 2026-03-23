@@ -284,7 +284,8 @@ export default function App({ config, supabase }) {
   }
 
   async function loadAppUsers() {
-    const res = await supabase.from("app_users").select("user_id,email,full_name,provider,last_login,created_at").order("last_login", { ascending: false });
+    const res = await supabase.from("app_users").select("user_id,email,full_name,provider,last_login,created_at,role,is_approved").order("last_login", { ascending: false });
+    if (res.error) { showToast("خطأ تحميل المستخدمين: " + res.error.message, "error"); return; }
     setAppUsers(res.data || []);
     if (!selectedUserId && res.data?.length) setSelectedUserId(res.data[0].user_id);
   }
@@ -303,6 +304,26 @@ export default function App({ config, supabase }) {
     const res = await supabase.from("app_ads").select("*").in("type", ["profile", "user"]).eq("owner_id", uid).order("sort_order", { ascending: true });
     if (res.error) { showToast(res.error.message, "error"); return; }
     setUserItems((res.data || []).length ? res.data : [emptyItem()]);
+  }
+
+  async function updateUserRole(userId, newRole) {
+    setSaving(true);
+    try {
+      const res = await supabase.from("app_users").update({ role: newRole }).eq("user_id", userId);
+      if (res.error) { showToast(res.error.message, "error"); return; }
+      showToast("تم تحديث الصلاحية ✓");
+      loadAppUsers(); // Refresh to show new role
+    } finally { setSaving(false); }
+  }
+
+  async function toggleUserApproval(userId, isApproved) {
+    setSaving(true);
+    try {
+      const res = await supabase.from("app_users").update({ is_approved: isApproved }).eq("user_id", userId);
+      if (res.error) { showToast(res.error.message, "error"); return; }
+      showToast("تم تحديث حالة القبول ✓");
+      loadAppUsers(); // Refresh to show new status
+    } finally { setSaving(false); }
   }
 
   async function saveClientMeta() {
@@ -544,14 +565,56 @@ export default function App({ config, supabase }) {
         )}
 
         <div className="card" ref={sectionRefs.userItems}>
-          <div className="card-title"><span className="icon">👤</span> إعلانات للمستخدم</div>
+          <div className="card-title"><span className="icon">👤</span> إعلانات للمستخدم وإدارة الصلاحيات</div>
           {appUsers.length === 0 ? <div className="muted">لا يوجد مستخدمون.</div> : (
             <div>
               <label>اختيار المستخدم</label>
               <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}>
-                {appUsers.map(u => <option key={u.user_id} value={u.user_id}>{u.email || u.full_name || u.user_id}</option>)}
+                {appUsers.map(u => <option key={u.user_id} value={u.user_id}>{u.email || u.full_name || u.user_id} ({u.role || "user"})</option>)}
               </select>
-              {currentUser && <div style={{ display: "flex", gap: 12, marginTop: 8 }}><span className="badge badge-blue">{currentUser.provider || "email"}</span><span className="muted">آخر دخول: {currentUser.last_login ? new Date(currentUser.last_login).toLocaleString() : "-"}</span></div>}
+              {currentUser && (
+                <div style={{ padding: "12px", border: "1px solid #ddd", borderRadius: "8px", marginTop: "12px", marginBottom: "16px", backgroundColor: "#fafafa" }}>
+                  <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
+                    <div>
+                      <span className="badge badge-blue">{currentUser.provider || "email"}</span>
+                    </div>
+                    <div>
+                      <span className="muted" style={{ fontSize: 13 }}>آخر دخول: {currentUser.last_login ? new Date(currentUser.last_login).toLocaleString() : "-"}</span>
+                    </div>
+                  </div>
+                  
+                  {isAdmin && (
+                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #eee" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>دور المستخدم:</span>
+                        <select 
+                          style={{ margin: 0, padding: "4px 8px", width: "auto" }} 
+                          value={currentUser.role || "user"} 
+                          onChange={(e) => updateUserRole(currentUser.user_id, e.target.value)}
+                          disabled={saving}
+                        >
+                          <option value="user">مستخدم عادي (User)</option>
+                          <option value="supervisor">مشرف (Supervisor)</option>
+                          <option value="admin">مدير (Admin)</option>
+                        </select>
+                      </div>
+                      
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>حالة الموافقة:</span>
+                        <select 
+                          style={{ margin: 0, padding: "4px 8px", width: "auto" }} 
+                          value={currentUser.is_approved ? "true" : "false"} 
+                          onChange={(e) => toggleUserApproval(currentUser.user_id, e.target.value === "true")}
+                          disabled={saving}
+                        >
+                          <option value="false">⏳ معلق (Pending)</option>
+                          <option value="true">✅ معتمد (Approved)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>📐 المقاس: <strong>360×140</strong> بكسل</div>
               <ListEditor items={userItems} setter={setUserItems} showBody showImage maxItems={3} onUpload={uploadImage} uploading={uploading} dimensionsHint={AD_IMAGE_DIMENSIONS} />
               <div className="actions">
