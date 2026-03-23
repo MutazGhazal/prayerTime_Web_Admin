@@ -12,7 +12,7 @@ FOR SELECT USING (is_active = true OR auth.uid() = owner_id);
 -- 3. سياسة الأدمن: الأدمن (الموجود في جدول admin_users) يمكنه فعل كل شيء
 DROP POLICY IF EXISTS "Admins manage all ads" ON public.app_ads;
 CREATE POLICY "Admins manage all ads" ON public.app_ads
-ALL TO authenticated
+FOR ALL TO authenticated
 USING (EXISTS (SELECT 1 FROM admin_users WHERE user_id = auth.uid()));
 
 -- 4. سياسة الإضافة: المستخدم أو المشرف يمكنه إضافة إعلاناته الخاصة فقط
